@@ -23,15 +23,15 @@ namespace LCVRBot
         public static GatewayClient client = new(new BotToken(Environment.GetEnvironmentVariable("LCVR_DISCORD") ?? ""), new GatewayClientConfiguration() { Intents = GatewayIntents.GuildMessages | GatewayIntents.MessageContent });
 
         // for registering / commands
-        ApplicationCommandService<ApplicationCommandContext> applicationCommandService = new();
+        readonly ApplicationCommandService<ApplicationCommandContext> applicationCommandService = new();
 
         // to handle gracefully closing the bot
-        static ConsoleEventDelegate handler = new ConsoleEventDelegate(HandleExitTasks);
+        static readonly ConsoleEventDelegate handler = new(HandleExitTasks);
         private delegate bool ConsoleEventDelegate(int eventType);
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool SetConsoleCtrlHandler(ConsoleEventDelegate callback, bool add);
 
-        public static Task Main(string[] args) => new Program().MainAsync();
+        public static Task Main() => new Program().MainAsync();
         public async Task MainAsync()
         {
             Console.WriteLine("\n*** LCVR Discord ***\n");
@@ -104,13 +104,13 @@ namespace LCVRBot
             // if it's not a macro, ignore
             if (!message.Content.StartsWith('.')) { return; }
                                                                                                // super convoluted way to check if the person using the macro has use-macros role lol
-            if (BotSettings.settings.macroList.Keys.Contains(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
+            if (BotSettings.settings.macroList.ContainsKey(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
             {
                 // get the macro for easier use
                 (string macroDescription, string macroText, Color macroColor, string? includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
                 
                 // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = { new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage) : null } };
+                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage) : null }];
                 
                 // send the macro and delete the macro message
                 TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
