@@ -15,7 +15,7 @@ namespace LCVRBot.Commands
         public class Settings
         {
             // the list of macros to be added to, edited, read from, and removed from
-            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment? includedImage)> macroList = new Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment? includedImage)>();
+            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, string? includedImage)> macroList = new Dictionary<string, (string macroDescription, string macroText, Color macroColor, string? includedImage)>();
         }
 
         // static settings instance for elsewhere to use

@@ -32,7 +32,7 @@ namespace LCVRBot.Commands
             try // try-catch adding it in case sumn fails
             {
                 // add the macro
-                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText, new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage));
+                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText, new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage?.Url));
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Added .{macroName} successfully!"; });
@@ -170,7 +170,7 @@ namespace LCVRBot.Commands
                 BotSettings.settings.macroList[macroName] = (macroDescription ?? BotSettings.settings.macroList[macroName].macroDescription,
                                                              macroText ?? BotSettings.settings.macroList[macroName].macroText,
                                                              macroColor != null ? new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()) : BotSettings.settings.macroList[macroName].macroColor,
-                                                             includedImage ?? BotSettings.settings.macroList[macroName].includedImage);
+                                                             includedImage != null ? includedImage.Url : BotSettings.settings.macroList[macroName].includedImage);
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Edited .{macroName} successfully!"; });
@@ -198,7 +198,7 @@ namespace LCVRBot.Commands
                 if (!BotSettings.settings.macroList.ContainsKey(macroName)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // remove the macro, saving it's contents
-                (string macroDescription, string macroText, NetCord.Color macroColor, Attachment? includedImage) contents;
+                (string macroDescription, string macroText, NetCord.Color macroColor, string? includedImage) contents;
                 BotSettings.settings.macroList.Remove(macroName, out contents);
 
                 // add it back under the new name and save

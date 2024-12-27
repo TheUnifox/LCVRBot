@@ -98,7 +98,7 @@ namespace LCVRBot
             if (message.ReferencedMessage?.Author.Id == client.Id || message.MentionedUsers.Where((user) => { return user.Id == client.Id; }).Any())
             {
                 Console.WriteLine("OwO");
-                await message.AddReactionAsync(new("🖕"));
+                await message.AddReactionAsync(new("🖕")); // maybe change to sumn LCVR specific later
             }
 
             // if it's not a macro, ignore
@@ -107,10 +107,10 @@ namespace LCVRBot
             if (BotSettings.settings.macroList.Keys.Contains(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
             {
                 // get the macro for easier use
-                (string macroDescription, string macroText, Color macroColor, Attachment? includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
+                (string macroDescription, string macroText, Color macroColor, string? includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
                 
                 // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = { new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage.Url) : null } };
+                EmbedProperties[] embeds = { new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage) : null } };
                 
                 // send the macro and delete the macro message
                 TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
