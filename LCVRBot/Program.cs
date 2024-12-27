@@ -37,6 +37,7 @@ namespace LCVRBot
             Console.WriteLine("\n*** LCVR Discord ***\n");
             client.Log += Log;
             client.MessageCreate += OnMessage;
+            client.Ready += ClientReady;
             //client.GuildUserAdd += UserJoined; // for if welcoming is wanted
 
             // add modules for commands
@@ -103,16 +104,17 @@ namespace LCVRBot
             // if it's not a macro, ignore
             if (!message.Content.StartsWith('.')) { return; }
                                                                                                // super convoluted way to check if the person using the macro has use-macros role lol
-            if (BotSettings.settings.macroList.Keys.Contains(message.Content.Split(" ")[0]) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
+            if (BotSettings.settings.macroList.Keys.Contains(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
             {
                 // get the macro for easier use
-                (string macroDescription, string macroText, Color macroColor, Attachment includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0]];
+                (string macroDescription, string macroText, Color macroColor, Attachment? includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
                 
                 // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = { new() { Color = macro.macroColor, Description = macro.macroText, Image = new(macro.includedImage.Url) } };
-
+                EmbedProperties[] embeds = { new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage.Url) : null } };
+                
                 // send the macro and delete the macro message
-                await message.Channel!.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "" });
+                TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
+                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "" });
                 await message.DeleteAsync();
             }
         }

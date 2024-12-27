@@ -11,19 +11,20 @@ using NetCord;
 using NetCord.Gateway;
 using LCVRBot;
 using System.Reflection;
+using System.Drawing;
 
 namespace LCVRBot.Commands
 {
-    internal class Macros : ApplicationCommandModule<ApplicationCommandContext>
+    public class Macros : ApplicationCommandModule<ApplicationCommandContext>
     {
         //  command for adding a macro      do NOT allow people to use the command in DMs lol       Make sure only admins can use it    only allow LCVR admins to use it
         [SlashCommand("add-macro", "Add a macro to use", Contexts = [InteractionContextType.Guild])]
         public async Task AddMacro(
             [SlashCommandParameter(Name = "name", Description = "The name of the macro. (Don't include the . and no spaces)")] string macroName,
             [SlashCommandParameter(Name = "description", Description = "A quick description of the macro")] string macroDescription,
-            [SlashCommandParameter(Name = "macro text", Description = "What you want the macro to say when used")] string macroText,
-            [SlashCommandParameter(Name = "color", Description = "the color of the macro embed")] Color macroColor,
-            [SlashCommandParameter(Name = "images", Description = "Images that you want to be sent along with the macro")] Attachment includedImage)
+            [SlashCommandParameter(Name = "macro-text", Description = "What you want the macro to say when used")] string macroText,
+            [SlashCommandParameter(Name = "color", Description = "the color of the macro embed in #RRGGBB format")] string macroColor,
+            [SlashCommandParameter(Name = "images", Description = "Images that you want to be sent along with the macro")] Attachment? includedImage = null)
         {
             // respond immediately to avoid timeout
             await RespondAsync(InteractionCallback.Message(new() { Content = $"Adding .{macroName} macro..." }));
@@ -31,7 +32,7 @@ namespace LCVRBot.Commands
             try // try-catch adding it in case sumn fails
             {
                 // add the macro
-                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText, macroColor, includedImage));
+                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText, new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage));
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Added .{macroName} successfully!"; });
@@ -153,8 +154,8 @@ namespace LCVRBot.Commands
         public async Task EditMacro(
             [SlashCommandParameter(Name = "name", Description = "The name of the macro. (Don't include the .)")] string macroName,
             [SlashCommandParameter(Name = "description", Description = "(optional) A quick description of the macro")] string? macroDescription = null,
-            [SlashCommandParameter(Name = "macro text", Description = "(optional) What you want the macro to say when used")] string? macroText = null,
-            [SlashCommandParameter(Name = "color", Description = "(optional) the color of the macro embed")] Color? macroColor = null,
+            [SlashCommandParameter(Name = "macro-text", Description = "(optional) What you want the macro to say when used")] string? macroText = null,
+            [SlashCommandParameter(Name = "color", Description = "(optional) the color of the macro embed in #rrggbb format")] string? macroColor = null,
             [SlashCommandParameter(Name = "images", Description = "(optional) Images that you want to be sent along with the macro")] Attachment? includedImage = null)
         {
             // respond immediately to avoid timeout
@@ -168,7 +169,7 @@ namespace LCVRBot.Commands
                 // edit the macro, skipping any part not changed
                 BotSettings.settings.macroList[macroName] = (macroDescription ?? BotSettings.settings.macroList[macroName].macroDescription,
                                                              macroText ?? BotSettings.settings.macroList[macroName].macroText,
-                                                             macroColor ?? BotSettings.settings.macroList[macroName].macroColor,
+                                                             macroColor != null ? new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()) : BotSettings.settings.macroList[macroName].macroColor,
                                                              includedImage ?? BotSettings.settings.macroList[macroName].includedImage);
                 BotSettings.Save();
 
@@ -197,7 +198,7 @@ namespace LCVRBot.Commands
                 if (!BotSettings.settings.macroList.ContainsKey(macroName)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // remove the macro, saving it's contents
-                (string macroDescription, string macroText, Color macroColor, Attachment includedImage) contents;
+                (string macroDescription, string macroText, NetCord.Color macroColor, Attachment? includedImage) contents;
                 BotSettings.settings.macroList.Remove(macroName, out contents);
 
                 // add it back under the new name and save

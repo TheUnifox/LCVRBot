@@ -15,7 +15,7 @@ namespace LCVRBot.Commands
         public class Settings
         {
             // the list of macros to be added to, edited, read from, and removed from
-            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment includedImage)> macroList = new Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment includedImage)>();
+            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment? includedImage)> macroList = new Dictionary<string, (string macroDescription, string macroText, Color macroColor, Attachment? includedImage)>();
         }
 
         // static settings instance for elsewhere to use
@@ -41,6 +41,8 @@ namespace LCVRBot.Commands
             // save settings to file
             string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
             string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
+            if (!Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\"))
+                Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\");
             File.WriteAllText(path, json);
         }
     }
