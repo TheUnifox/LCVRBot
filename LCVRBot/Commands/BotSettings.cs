@@ -29,6 +29,7 @@ namespace LCVRBot.Commands
                 string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
                 string json = File.ReadAllText(path);
                 settings = JsonConvert.DeserializeObject<Settings>(json)!;
+                Console.WriteLine(JsonConvert.SerializeObject(settings.macroList)); // debugging
             }
             catch (Exception e)
             {
@@ -40,6 +41,7 @@ namespace LCVRBot.Commands
         {
             // save settings to file
             string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
+            json.Replace("""\\n""", """\n"""); // fix newlines saving as //n ig
             string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
             if (!Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\"))
                 Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\");

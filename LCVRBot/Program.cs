@@ -87,7 +87,7 @@ namespace LCVRBot
 
         public async ValueTask ClientReady(ReadyEventArgs args)
         {
-            mainGuild = await client.Rest.GetGuildAsync(1192754217564254238);
+            mainGuild = await client.Rest.GetGuildAsync(753747740424536145);
             Console.WriteLine("Started!");
         }
 
