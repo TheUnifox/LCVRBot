@@ -1,9 +1,9 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using LCVRBot;
 using NetCord;
@@ -28,8 +28,8 @@ namespace LCVRBot.Commands
             {
                 string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
                 string json = File.ReadAllText(path);
-                settings = JsonConvert.DeserializeObject<Settings>(json)!;
-                Console.WriteLine(JsonConvert.SerializeObject(settings.macroList)); // debugging
+                settings = JsonSerializer.Deserialize<Settings>(json, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })!;
+                Console.WriteLine(JsonSerializer.Serialize(settings.macroList, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })); // debugging
             }
             catch (Exception e)
             {
@@ -40,8 +40,7 @@ namespace LCVRBot.Commands
         public static void Save()
         {
             // save settings to file
-            string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
-            json.Replace("""\\n""", """\n"""); // fix newlines saving as //n ig
+            string json = JsonSerializer.Serialize(settings, typeof(Settings), new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true,  } );
             string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
             if (!Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\"))
                 Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\");

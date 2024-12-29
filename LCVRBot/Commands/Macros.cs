@@ -32,7 +32,7 @@ namespace LCVRBot.Commands
             try // try-catch adding it in case sumn fails
             {
                 // add the macro
-                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText, new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage?.Url));
+                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText.Replace("\\n", "\n"), new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage?.Url));
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Added .{macroName} successfully!"; });
@@ -168,7 +168,7 @@ namespace LCVRBot.Commands
 
                 // edit the macro, skipping any part not changed
                 BotSettings.settings.macroList[macroName] = (macroDescription ?? value.macroDescription,
-                                                             macroText ?? value.macroText,
+                                                             macroText != null ? macroText.Replace("\\n", "\n") : value.macroText,
                                                              macroColor != null ? new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()) : value.macroColor,
                                                              includedImage != null ? includedImage.Url : value.includedImage);
                 BotSettings.Save();
