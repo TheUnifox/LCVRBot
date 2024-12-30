@@ -19,6 +19,8 @@ namespace LCVRBot
         // the main server the bot operates in
         public static RestGuild? mainGuild;
 
+        public static string appdataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\";
+
         // the bot, handles everything through here
         public static GatewayClient client = new(new BotToken(Environment.GetEnvironmentVariable("LCVR_DISCORD") ?? ""), new GatewayClientConfiguration() { Intents = GatewayIntents.GuildMessages | GatewayIntents.MessageContent });
 
@@ -87,7 +89,7 @@ namespace LCVRBot
 
         public async ValueTask ClientReady(ReadyEventArgs args)
         {
-            mainGuild = await client.Rest.GetGuildAsync(753747740424536145);
+            mainGuild = await client.Rest.GetGuildAsync(1192754217564254238);
             Console.WriteLine("Started!");
         }
 
@@ -107,14 +109,25 @@ namespace LCVRBot
             if (BotSettings.settings.macroList.ContainsKey(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
             {
                 // get the macro for easier use
-                (string macroDescription, string macroText, Color macroColor, string? includedImage) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
+                (string macroDescription, string macroText, Color macroColor, string[] attachments) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
                 
                 // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macro.macroText, Image = macro.includedImage != null ? new(macro.includedImage) : null }];
+                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macro.macroText, Image = (macro.attachments != null && macro.attachments.Length != 0) ? new($"attachment://{macro.attachments[0]}") : null }];
                 
                 // send the macro and delete the macro message
                 TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
-                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "" });
+
+                List<AttachmentProperties> attachments = [];
+                if (macro.attachments != null && macro.attachments.Length != 0) 
+                {
+                    foreach (var attachment in macro.attachments)
+                    {
+                        Stream attachmentStream = File.OpenRead(appdataPath + attachment);
+                        attachments.Add(new AttachmentProperties(attachment, attachmentStream));
+                    }
+                }
+
+                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "", Attachments = attachments });
                 await message.DeleteAsync();
             }
         }

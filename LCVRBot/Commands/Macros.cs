@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Net;
 using NetCord.Rest;
 using NetCord.Services;
 using NetCord.Services.ApplicationCommands;
@@ -24,15 +25,29 @@ namespace LCVRBot.Commands
             [SlashCommandParameter(Name = "description", Description = "A quick description of the macro")] string macroDescription,
             [SlashCommandParameter(Name = "macro-text", Description = "What you want the macro to say when used")] string macroText,
             [SlashCommandParameter(Name = "color", Description = "the color of the macro embed in #RRGGBB format")] string macroColor,
-            [SlashCommandParameter(Name = "images", Description = "Images that you want to be sent along with the macro")] Attachment? includedImage = null)
+            [SlashCommandParameter(Name = "attachments", Description = "Attachments that you want to be sent along with the macro")] Attachment[]? attachments = null)
         {
             // respond immediately to avoid timeout
             await RespondAsync(InteractionCallback.Message(new() { Content = $"Adding .{macroName} macro..." }));
 
             try // try-catch adding it in case sumn fails
             {
+                // download the attachments to appdataPath for storage and reupload
+                // and create a list of saved files
+                List<string> files = [];
+                if (attachments != null) {
+                    foreach (var attachment in attachments)
+                    {
+                        using (var client = new WebClient())
+                        {
+                            client.DownloadFile(attachment.Url, Program.appdataPath + attachment.FileName);
+                        }
+                        files.Add(attachment.FileName);
+                    }
+                }
+
                 // add the macro
-                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText.Replace("\\n", "\n"), new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), includedImage?.Url));
+                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText.Replace("\\n", "\n"), new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), files.ToArray()));
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Added .{macroName} successfully!"; });
@@ -56,7 +71,13 @@ namespace LCVRBot.Commands
             try // try-catch removing it in case sumn fails
             {
                 // throw if there isn't a macro with that name
-                if (!BotSettings.settings.macroList.ContainsKey(macroName)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
+                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
+
+                // delete any associated attachments
+                foreach (string attachment in value.attachments)
+                {
+                    File.Delete(Program.appdataPath + attachment);
+                }
 
                 // remove the macro
                 BotSettings.settings.macroList.Remove(macroName);
@@ -156,7 +177,7 @@ namespace LCVRBot.Commands
             [SlashCommandParameter(Name = "description", Description = "(optional) A quick description of the macro")] string? macroDescription = null,
             [SlashCommandParameter(Name = "macro-text", Description = "(optional) What you want the macro to say when used")] string? macroText = null,
             [SlashCommandParameter(Name = "color", Description = "(optional) the color of the macro embed in #rrggbb format")] string? macroColor = null,
-            [SlashCommandParameter(Name = "images", Description = "(optional) Images that you want to be sent along with the macro")] Attachment? includedImage = null)
+            [SlashCommandParameter(Name = "attachments", Description = "(optional) Attachments that you want to be sent along with the macro")] Attachment[]? attachments = null)
         {
             // respond immediately to avoid timeout
             await RespondAsync(InteractionCallback.Message(new() { Content = $"Editing .{macroName} macro..." }));
@@ -164,13 +185,41 @@ namespace LCVRBot.Commands
             try // try-catch editing it in case sumn fails
             {
                 // throw if there isnt a macro with that name
-                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string? includedImage) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
+                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
-                // edit the macro, skipping any part not changed
-                BotSettings.settings.macroList[macroName] = (macroDescription ?? value.macroDescription,
+                // edit the macro, skipping any part not changed, and attachments as they will be added later
+                (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) editedMacro = (macroDescription ?? value.macroDescription,
                                                              macroText != null ? macroText.Replace("\\n", "\n") : value.macroText,
                                                              macroColor != null ? new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()) : value.macroColor,
-                                                             includedImage != null ? includedImage.Url : value.includedImage);
+                                                             value.attachments);
+
+                // download any attachments to be changed or added, and add them to the edited macro
+                // and create a list of saved files
+                List<string> files = [];
+                if (attachments != null)
+                {
+                    // delete the old files
+                    foreach (var attachment in editedMacro.attachments)
+                    {
+                        File.Delete(Program.appdataPath + attachment);
+                    }
+
+                    // then download the new ones
+                    foreach (var attachment in attachments)
+                    {
+                        using (var client = new WebClient())
+                        {
+                            client.DownloadFile(attachment.Url, Program.appdataPath + attachment.FileName);
+                        }
+                        files.Add(attachment.FileName);
+                    }
+
+                    // now add the new list 
+                    editedMacro.attachments = [.. files];
+                }
+
+                // save the edited macro
+                BotSettings.settings.macroList[macroName] = editedMacro;
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Edited .{macroName} successfully!"; });
@@ -198,7 +247,7 @@ namespace LCVRBot.Commands
                 if (!BotSettings.settings.macroList.ContainsKey(macroName)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // remove the macro, saving it's contents
-                BotSettings.settings.macroList.Remove(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string? includedImage) contents);
+                BotSettings.settings.macroList.Remove(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) contents);
 
                 // add it back under the new name and save
                 BotSettings.settings.macroList.Add(newName, contents);

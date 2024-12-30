@@ -15,19 +15,20 @@ namespace LCVRBot.Commands
         public class Settings
         {
             // the list of macros to be added to, edited, read from, and removed from
-            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, string? includedImage)> macroList = [];
+            public Dictionary<string, (string macroDescription, string macroText, Color macroColor, string[] attachments)> macroList = [];
         }
 
         // static settings instance for elsewhere to use
         public static Settings settings = new();
+
+        public static string settingsPath = Program.appdataPath + "SETTINGS.json";
 
         public static void Load()
         {
             //load settings from file, if it exists
             try
             {
-                string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
-                string json = File.ReadAllText(path);
+                string json = File.ReadAllText(settingsPath);
                 settings = JsonSerializer.Deserialize<Settings>(json, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })!;
                 Console.WriteLine(JsonSerializer.Serialize(settings.macroList, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })); // debugging
             }
@@ -41,10 +42,9 @@ namespace LCVRBot.Commands
         {
             // save settings to file
             string json = JsonSerializer.Serialize(settings, typeof(Settings), new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true,  } );
-            string path = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\SETTINGS.json";
-            if (!Directory.Exists(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\"))
-                Directory.CreateDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\");
-            File.WriteAllText(path, json);
+            if (!Directory.Exists(Program.appdataPath))
+                Directory.CreateDirectory(Program.appdataPath);
+            File.WriteAllText(settingsPath, json);
         }
     }
 }
