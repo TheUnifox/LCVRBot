@@ -133,7 +133,7 @@ namespace LCVRBot
                     {
                         Stream attachmentStream = File.OpenRead(appdataPath + attachment);
                         RestMessage attachmentMessage = await attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment, attachmentStream)] });
-                        macroTextWAttach += $"[{attachment}]({attachmentMessage.Attachments[0].Url})\n";
+                        macroTextWAttach += $"{attachmentMessage.Attachments[0].Url}\n";
                     }
                 }
 
