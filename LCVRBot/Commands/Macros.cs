@@ -25,7 +25,9 @@ namespace LCVRBot.Commands
             [SlashCommandParameter(Name = "description", Description = "A quick description of the macro")] string macroDescription,
             [SlashCommandParameter(Name = "macro-text", Description = "What you want the macro to say when used")] string macroText,
             [SlashCommandParameter(Name = "color", Description = "the color of the macro embed in #RRGGBB format")] string macroColor,
-            [SlashCommandParameter(Name = "attachments", Description = "Attachments that you want to be sent along with the macro")] Attachment[]? attachments = null)
+            [SlashCommandParameter(Name = "attachment1", Description = "(optional) First attachment that you want to be sent along with the macro")] Attachment? attachment1 = null,
+            [SlashCommandParameter(Name = "attachment2", Description = "(optional) Second attachment that you want to be sent along with the macro")] Attachment? attachment2 = null,
+            [SlashCommandParameter(Name = "attachment3", Description = "(optional) Third attachment that you want to be sent along with the macro")] Attachment? attachment3 = null)
         {
             // respond immediately to avoid timeout
             await RespondAsync(InteractionCallback.Message(new() { Content = $"Adding .{macroName} macro..." }));
@@ -35,15 +37,32 @@ namespace LCVRBot.Commands
                 // download the attachments to appdataPath for storage and reupload
                 // and create a list of saved files
                 List<string> files = [];
-                if (attachments != null) {
-                    foreach (var attachment in attachments)
+                if (attachment1 != null)
+                {
+                    using (var client = new WebClient())
                     {
-                        using (var client = new WebClient())
-                        {
-                            client.DownloadFile(attachment.Url, Program.appdataPath + attachment.FileName);
-                        }
-                        files.Add(attachment.FileName);
+                        string filePath = Program.appdataPath + attachment1.FileName;
+                        client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
                     }
+                    files.Add(attachment1.FileName);
+                }
+                if (attachment2 != null)
+                {
+                    using (var client = new WebClient())
+                    {
+                        string filePath = Program.appdataPath + attachment2.FileName;
+                        client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                    }
+                    files.Add(attachment2.FileName);
+                }
+                if (attachment3 != null)
+                {
+                    using (var client = new WebClient())
+                    {
+                        string filePath = Program.appdataPath + attachment3.FileName;
+                        client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                    }
+                    files.Add(attachment3.FileName);
                 }
 
                 // add the macro
@@ -177,7 +196,9 @@ namespace LCVRBot.Commands
             [SlashCommandParameter(Name = "description", Description = "(optional) A quick description of the macro")] string? macroDescription = null,
             [SlashCommandParameter(Name = "macro-text", Description = "(optional) What you want the macro to say when used")] string? macroText = null,
             [SlashCommandParameter(Name = "color", Description = "(optional) the color of the macro embed in #rrggbb format")] string? macroColor = null,
-            [SlashCommandParameter(Name = "attachments", Description = "(optional) Attachments that you want to be sent along with the macro")] Attachment[]? attachments = null)
+            [SlashCommandParameter(Name = "attachment1", Description = "(optional) First attachment that you want to be sent along with the macro")] Attachment? attachment1 = null,
+            [SlashCommandParameter(Name = "attachment2", Description = "(optional) Second attachment that you want to be sent along with the macro")] Attachment? attachment2 = null,
+            [SlashCommandParameter(Name = "attachment3", Description = "(optional) Third attachment that you want to be sent along with the macro")] Attachment? attachment3 = null)
         {
             // respond immediately to avoid timeout
             await RespondAsync(InteractionCallback.Message(new() { Content = $"Editing .{macroName} macro..." }));
@@ -195,23 +216,90 @@ namespace LCVRBot.Commands
 
                 // download any attachments to be changed or added, and add them to the edited macro
                 // and create a list of saved files
-                List<string> files = [];
-                if (attachments != null)
+                List<string> files = [.. editedMacro.attachments];
+                if (attachment1 != null || attachment2 != null || attachment3 != null )
                 {
-                    // delete the old files
-                    foreach (var attachment in editedMacro.attachments)
+                    // check if any are being replaced
+                    if (attachment1 != null)
                     {
-                        File.Delete(Program.appdataPath + attachment);
-                    }
-
-                    // then download the new ones
-                    foreach (var attachment in attachments)
-                    {
-                        using (var client = new WebClient())
+                        try
                         {
-                            client.DownloadFile(attachment.Url, Program.appdataPath + attachment.FileName);
+                            // delete the old file
+                            File.Delete(files[0]);
+
+                            // and download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment1.FileName;
+                                client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+                            files[0] = attachment1.FileName;
                         }
-                        files.Add(attachment.FileName);
+                        catch
+                        {
+                            // Deleting the file must have failed, meaning just download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment1.FileName;
+                                client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+
+                            files.Add(attachment1.FileName);
+                        }
+                    }
+                    if (attachment2 != null)
+                    {
+                        try
+                        {
+                            // delete the old file
+                            File.Delete(files[0]);
+
+                            // and download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment2.FileName;
+                                client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+                            files[0] = attachment2.FileName;
+                        }
+                        catch
+                        {
+                            // Deleting the file must have failed, meaning just download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment2.FileName;
+                                client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+
+                            files.Add(attachment2.FileName);
+                        }
+                    }
+                    if (attachment3 != null)
+                    {
+                        try
+                        {
+                            // delete the old file
+                            File.Delete(files[0]);
+
+                            // and download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment3.FileName;
+                                client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+                            files[0] = attachment3.FileName;
+                        }
+                        catch
+                        {
+                            // Deleting the file must have failed, meaning just download the new one
+                            using (var client = new WebClient())
+                            {
+                                string filePath = Program.appdataPath + attachment3.FileName;
+                                client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                            }
+
+                            files.Add(attachment3.FileName);
+                        }
                     }
 
                     // now add the new list 

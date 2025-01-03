@@ -11,6 +11,7 @@ using System.IO.Pipes;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using NetCord.Services;
+using System.Linq;
 
 namespace LCVRBot
 {
@@ -18,6 +19,9 @@ namespace LCVRBot
     {
         // the main server the bot operates in
         public static RestGuild? mainGuild;
+
+        // a channel to upload attachments to for nicer linking
+        public static TextGuildChannel? attachmentChannel;
 
         public static string appdataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\";
 
@@ -90,6 +94,7 @@ namespace LCVRBot
         public async ValueTask ClientReady(ReadyEventArgs args)
         {
             mainGuild = await client.Rest.GetGuildAsync(1192754217564254238);
+            attachmentChannel = (TextGuildChannel)await client.Rest.GetChannelAsync(1324573814947975220);
             Console.WriteLine("Started!");
         }
 
@@ -110,24 +115,42 @@ namespace LCVRBot
             {
                 // get the macro for easier use
                 (string macroDescription, string macroText, Color macroColor, string[] attachments) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
-                
+                List<string>? macroAttachments = macro.attachments != null ? [..macro.attachments] : null;
+
+                // select an image from the attachments to embed
+                // and add attachments nicely to the end of the message, instead of leaving them at the top
+                string? embedImage = null;
+                string macroTextWAttach = macro.macroText;
+                if (macroAttachments != null && macroAttachments.Count != 0)
+                {
+                    if (macroAttachments.Count > 0 && (macroAttachments[0].EndsWith(".jpg") || macroAttachments[0].EndsWith(".png") || macroAttachments[0].EndsWith(".gif"))) { embedImage = macroAttachments[0]; macroAttachments.RemoveAt(0); }
+                    else if (macroAttachments.Count > 1 && (macroAttachments[1].EndsWith(".jpg") || macroAttachments[1].EndsWith(".png") || macroAttachments[1].EndsWith(".gif"))) { embedImage = macroAttachments[1]; macroAttachments.RemoveAt(1); }
+                    else if (macroAttachments.Count > 2 && (macroAttachments[2].EndsWith(".jpg") || macroAttachments[2].EndsWith(".png") || macroAttachments[2].EndsWith(".gif"))) { embedImage = macroAttachments[2]; macroAttachments.RemoveAt(2); }
+                    
+                    macroTextWAttach += "\n\n";
+
+                    foreach (string attachment in macroAttachments)
+                    {
+                        Stream attachmentStream = File.OpenRead(appdataPath + attachment);
+                        RestMessage attachmentMessage = await attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment, attachmentStream)] });
+                        macroTextWAttach += $"[{attachment}]({attachmentMessage.Attachments[0].Url})\n";
+                    }
+                }
+
                 // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macro.macroText, Image = (macro.attachments != null && macro.attachments.Length != 0) ? new($"attachment://{macro.attachments[0]}") : null }];
+                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macroTextWAttach, Image = embedImage != null ? $"attachment://{embedImage}" : null }];
                 
                 // send the macro and delete the macro message
                 TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
 
                 List<AttachmentProperties> attachments = [];
-                if (macro.attachments != null && macro.attachments.Length != 0) 
+                if (embedImage != null) 
                 {
-                    foreach (var attachment in macro.attachments)
-                    {
-                        Stream attachmentStream = File.OpenRead(appdataPath + attachment);
-                        attachments.Add(new AttachmentProperties(attachment, attachmentStream));
-                    }
+                    Stream attachmentStream = File.OpenRead(appdataPath + embedImage);
+                    attachments.Add(new AttachmentProperties(embedImage, attachmentStream));
                 }
 
-                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "", Attachments = attachments });
+                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "", Attachments = attachments.Any() ? attachments : null });
                 await message.DeleteAsync();
             }
         }

@@ -30,7 +30,6 @@ namespace LCVRBot.Commands
             {
                 string json = File.ReadAllText(settingsPath);
                 settings = JsonSerializer.Deserialize<Settings>(json, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })!;
-                Console.WriteLine(JsonSerializer.Serialize(settings.macroList, new JsonSerializerOptions() { IncludeFields = true, WriteIndented = true })); // debugging
             }
             catch (Exception e)
             {
