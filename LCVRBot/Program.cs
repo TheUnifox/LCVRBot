@@ -1,17 +1,9 @@
-﻿using System;
-using System.Runtime.InteropServices;
-using NetCord;
+﻿using NetCord;
 using NetCord.Gateway;
 using NetCord.Rest;
 using NetCord.Services.ApplicationCommands;
 using LCVRBot.Commands;
-using System.Diagnostics;
-using Newtonsoft.Json;
-using System.IO.Pipes;
-using System.Text;
-using Newtonsoft.Json.Linq;
 using NetCord.Services;
-using System.Linq;
 using System.Drawing;
 
 namespace LCVRBot
@@ -24,7 +16,7 @@ namespace LCVRBot
         // a channel to upload attachments to for nicer linking
         public static TextGuildChannel? attachmentChannel;
 
-        public static string appdataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData) + "\\LCVRDiscord\\";
+        public static string appdataPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LCVRDiscord");
 
         // the bot, handles everything through here
         public static GatewayClient client = new(new BotToken(Environment.GetEnvironmentVariable("LCVR_DISCORD") ?? ""), new GatewayClientConfiguration() { Intents = GatewayIntents.GuildMessages | GatewayIntents.MessageContent });
@@ -32,13 +24,8 @@ namespace LCVRBot
         // for registering / commands
         readonly ApplicationCommandService<ApplicationCommandContext> applicationCommandService = new();
 
-        // to handle gracefully closing the bot
-        static readonly ConsoleEventDelegate handler = new(HandleExitTasks);
-        private delegate bool ConsoleEventDelegate(int eventType);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool SetConsoleCtrlHandler(ConsoleEventDelegate callback, bool add);
-
         public static Task Main() => new Program().MainAsync();
+
         public async Task MainAsync()
         {
             Console.WriteLine("\n*** LCVR Discord ***\n");
@@ -50,7 +37,15 @@ namespace LCVRBot
             // add modules for commands
             applicationCommandService.AddModules(typeof(Program).Assembly);
 
-            SetConsoleCtrlHandler(handler, true); // to close the bot gracefully
+            var cancellationToken = new CancellationTokenSource();
+
+            Console.CancelKeyPress += (_, args) =>
+            {
+                args.Cancel = true;
+
+                client.CloseAsync().Wait();
+                cancellationToken.Cancel();
+            };
 
             BotSettings.Load(); // load bot settings, like the macro list
 
@@ -61,19 +56,33 @@ namespace LCVRBot
             {
                 if (interaction is not ApplicationCommandInteraction applicationCommandInteraction)
                     return;
-                
-                var result = await applicationCommandService.ExecuteAsync(new ApplicationCommandContext(applicationCommandInteraction, client));
+
+                var result =
+                    await applicationCommandService.ExecuteAsync(
+                        new ApplicationCommandContext(applicationCommandInteraction, client));
 
                 if (result is not IFailResult failResult)
                     return;
 
-                try { await interaction.SendResponseAsync(InteractionCallback.Message(new() { Content = failResult.Message, Flags = MessageFlags.Ephemeral })); }
-                catch { }
+                try
+                {
+                    await interaction.SendResponseAsync(InteractionCallback.Message(new()
+                        { Content = failResult.Message, Flags = MessageFlags.Ephemeral }));
+                }
+                catch
+                {
+                }
             };
 
-            await client.StartAsync(); // start it up!
-
-            await Task.Delay(-1); // hold this up for good to keep the bot running
+            try
+            {
+                await client.StartAsync(cancellationToken: cancellationToken.Token); // start it up!
+                await Task.Delay(Timeout.Infinite,
+                    cancellationToken.Token); // hold this up for good to keep the bot running
+            }
+            catch (TaskCanceledException)
+            {
+            }
         }
 
         // close the bot gracefully
