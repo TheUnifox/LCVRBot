@@ -85,16 +85,6 @@ namespace LCVRBot
             }
         }
 
-        // close the bot gracefully
-        static bool HandleExitTasks(int eventType)
-        {
-            if (eventType == 2)
-            {
-                Task.WaitAll([client.CloseAsync()]);
-            }
-            return false;
-        }
-
         public static ValueTask Log(LogMessage message)
         {
             Console.WriteLine(message);
