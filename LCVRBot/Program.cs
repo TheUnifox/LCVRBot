@@ -12,6 +12,7 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using NetCord.Services;
 using System.Linq;
+using System.Drawing;
 
 namespace LCVRBot
 {
@@ -113,44 +114,106 @@ namespace LCVRBot
                                                                                                // super convoluted way to check if the person using the macro has use-macros role lol
             if (BotSettings.settings.macroList.ContainsKey(message.Content.Split(" ")[0].Remove(0, 1)) && ((GuildUser)message.Author).GetRoles(mainGuild!).Where((role) => { return role.Name == "use-macros"; }).Any())
             {
-                // get the macro for easier use
-                (string macroDescription, string macroText, Color macroColor, string[] attachments) macro = BotSettings.settings.macroList[message.Content.Split(" ")[0].Remove(0, 1)];
-                List<string>? macroAttachments = macro.attachments != null ? [..macro.attachments] : null;
+                // get a list of parameters to insert, removing the macro from the list
+                List<string> macroParams = [.. message.Content.Split(" ")];
+                string macroName = macroParams[0].Remove(0, 1);
+                macroParams.RemoveAt(0);
 
-                // select an image from the attachments to embed
-                // and add attachments nicely to the end of the message, instead of leaving them at the top
+                // get the macro for easier use
+                (string macroDescription, string macroText, string[] attachments) macro = BotSettings.settings.macroList[macroName];
+                List<string>? macroAttachments = macro.attachments != null ? [..macro.attachments] : null;
+                string macroText = macro.macroText;
+
+                // replace {int} params
+                // replace {0} with nothing if nothing is specified tho
+                if (macroParams.Count == 0) { macroText = macroText.Replace("{0}", ""); }
+                for (int paramNum = 0; paramNum < macroParams.Count; paramNum++)
+                {
+                    if (paramNum != macroParams.Count - 1 && !macroText.Contains($"{{{paramNum}}}"))
+                    {
+                        string paramRemain = "";
+                        for (int i = paramNum; i < macroParams.Count; i++) { paramRemain += macroParams[i]; }
+                        macroText = macroText.Replace($"{{{paramNum}}}", paramRemain);
+                        break;
+                    }
+                    macroText = macroText.Replace($"{{{paramNum}}}", macroParams[paramNum]);
+                }
+
+                // check if it's not an embed
+                if (!macroText.StartsWith("!embed"))
+                {
+                    // if it's not, replace {att(int)} params
+                    // and add extra attachments at the end
+                    if (macroAttachments != null && macroAttachments.Count > 0)
+                    {
+                        for (int paramNum = 0; paramNum < macroAttachments.Count; paramNum++)
+                        {
+                            if (!macroText.Contains($"{{att{paramNum}}}"))
+                            {
+                                macroText += "\n" + macroAttachments[paramNum];
+                                continue;
+                            }
+                            macroText = macroText.Replace($"{{att{paramNum}}}", macroAttachments[paramNum]);
+                        }
+                    }
+
+                    // and send as message
+                    TextGuildChannel messageChannel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
+                    await messageChannel.SendMessageAsync(new() { Content = macroText });
+                    await message.DeleteAsync();
+
+                    return;
+                }
+
+                // check for an image attachment to set as embed image
                 string? embedImage = null;
-                string macroTextWAttach = macro.macroText;
                 if (macroAttachments != null && macroAttachments.Count != 0)
                 {
-                    if (macroAttachments.Count > 0 && (macroAttachments[0].EndsWith(".jpg") || macroAttachments[0].EndsWith(".png") || macroAttachments[0].EndsWith(".gif"))) { embedImage = macroAttachments[0]; macroAttachments.RemoveAt(0); }
-                    else if (macroAttachments.Count > 1 && (macroAttachments[1].EndsWith(".jpg") || macroAttachments[1].EndsWith(".png") || macroAttachments[1].EndsWith(".gif"))) { embedImage = macroAttachments[1]; macroAttachments.RemoveAt(1); }
-                    else if (macroAttachments.Count > 2 && (macroAttachments[2].EndsWith(".jpg") || macroAttachments[2].EndsWith(".png") || macroAttachments[2].EndsWith(".gif"))) { embedImage = macroAttachments[2]; macroAttachments.RemoveAt(2); }
-                    
-                    macroTextWAttach += "\n\n";
-
-                    foreach (string attachment in macroAttachments)
+                    int attIndex = 0;
+                    foreach (var attachment in macroAttachments)
                     {
-                        Stream attachmentStream = File.OpenRead(appdataPath + attachment);
-                        RestMessage attachmentMessage = await attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment, attachmentStream)] });
-                        macroTextWAttach += $"{attachmentMessage.Attachments[0].Url}\n";
+                        if (attachment.Contains(".jpg") || attachment.Contains(".png") || attachment.Contains(".gif"))
+                            { embedImage = attachment; macroAttachments.RemoveAt(attIndex); break; }
+                        attIndex++;
                     }
                 }
 
-                // create an embed for the macro, in a list bc send message requires a list of them
-                EmbedProperties[] embeds = [new() { Color = macro.macroColor, Description = macroTextWAttach, Image = embedImage != null ? $"attachment://{embedImage}" : null }];
-                
-                // send the macro and delete the macro message
-                TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
-
-                List<AttachmentProperties> attachments = [];
-                if (embedImage != null) 
+                // replace {att(int)} params
+                // and add extra attachments at the end
+                if (macroAttachments != null && macroAttachments.Count != 0)
                 {
-                    Stream attachmentStream = File.OpenRead(appdataPath + embedImage);
-                    attachments.Add(new AttachmentProperties(embedImage, attachmentStream));
+                    for (int paramNum = 0; paramNum < macroAttachments.Count; paramNum++)
+                    {
+                        if (!macroText.Contains($"{{att{paramNum}}}"))
+                        {
+                            macroText += "\n" + macroAttachments[paramNum];
+                            continue;
+                        }
+                        macroText = macroText.Replace($"{{att{paramNum}}}", macroAttachments[paramNum]);
+                    }
                 }
 
-                await channel.SendMessageAsync(new() { Embeds = embeds, Content = message.Content.Split(" ").Length > 1 ? message.Content.Split(" ")[1] : "", Attachments = attachments.Any() ? attachments : null });
+                // get ready to parse the rest for embed
+                List<string> textParts = [.. macroText.Split("\n")];
+                string? embedTitle = null;
+                string? embedFooter = null;
+                NetCord.Color? embedColor = null;
+                string embedText = "";
+
+                // check for embed title and colour
+                for (int i = 0; i < textParts.Count; i++)
+                {
+                    if (textParts[i].StartsWith("!embed"))  { continue; }
+                    if (textParts[i].StartsWith("!title ")) { embedTitle = textParts[i].Replace("!title ", ""); continue; }
+                    if (textParts[i].StartsWith("!footer ")) { embedFooter = textParts[i].Replace("!footer ", ""); continue; }
+                    if (textParts[i].StartsWith("!color"))  { embedColor = new NetCord.Color(ColorTranslator.FromHtml(textParts[i].Replace("!color ", "")).ToArgb()); continue; }
+                    embedText += textParts[i] + "\n";
+                }
+
+                // send as an embed                                       just a random colour if it wasnt set
+                EmbedProperties[] embeds = [new() { Color = embedColor ?? new NetCord.Color(new Random().Next()), Title = embedTitle ?? null, Footer = embedFooter != null ? new() { Text = embedFooter } : null, Image = embedImage ?? null, Description = embedText.Length != 0 ? embedText : null }];
+                TextGuildChannel channel = (TextGuildChannel)await client.Rest.GetChannelAsync(message.ChannelId);
+                var result = await channel.SendMessageAsync(new() { Embeds = embeds });
                 await message.DeleteAsync();
             }
         }

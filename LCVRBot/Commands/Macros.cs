@@ -19,12 +19,11 @@ namespace LCVRBot.Commands
     public class Macros : ApplicationCommandModule<ApplicationCommandContext>
     {
         //  command for adding a macro      do NOT allow people to use the command in DMs lol       Make sure only admins can use it    only allow LCVR admins to use it
-        [SlashCommand("add-macro", "Add a macro to use", Contexts = [InteractionContextType.Guild])]
+        [SlashCommand("add-macro", "Add a macro to use", Contexts = [InteractionContextType.Guild], DefaultGuildUserPermissions = Permissions.Administrator)]
         public async Task AddMacro(
             [SlashCommandParameter(Name = "name", Description = "The name of the macro. (Don't include the . and no spaces)")] string macroName,
             [SlashCommandParameter(Name = "description", Description = "A quick description of the macro")] string macroDescription,
             [SlashCommandParameter(Name = "macro-text", Description = "What you want the macro to say when used")] string macroText,
-            [SlashCommandParameter(Name = "color", Description = "the color of the macro embed in #RRGGBB format")] string macroColor,
             [SlashCommandParameter(Name = "attachment1", Description = "(optional) First attachment that you want to be sent along with the macro")] Attachment? attachment1 = null,
             [SlashCommandParameter(Name = "attachment2", Description = "(optional) Second attachment that you want to be sent along with the macro")] Attachment? attachment2 = null,
             [SlashCommandParameter(Name = "attachment3", Description = "(optional) Third attachment that you want to be sent along with the macro")] Attachment? attachment3 = null)
@@ -34,8 +33,9 @@ namespace LCVRBot.Commands
 
             try // try-catch adding it in case sumn fails
             {
-                // download the attachments to appdataPath for storage and reupload
-                // and create a list of saved files
+                // download the attachments to appdataPath, then reupload for non expiring links
+                // create a list of saved files
+                // and delete the downloaded files
                 List<string> files = [];
                 if (attachment1 != null)
                 {
@@ -43,8 +43,11 @@ namespace LCVRBot.Commands
                     {
                         string filePath = Program.appdataPath + attachment1.FileName;
                         client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                        Stream attachmentStream = File.OpenRead(filePath);
+                        RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment1.FileName, attachmentStream)] });
+                        files.Add(attachmentMessage.Attachments[0].Url);
+                        File.Delete(filePath);
                     }
-                    files.Add(attachment1.FileName);
                 }
                 if (attachment2 != null)
                 {
@@ -52,8 +55,11 @@ namespace LCVRBot.Commands
                     {
                         string filePath = Program.appdataPath + attachment2.FileName;
                         client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                        Stream attachmentStream = File.OpenRead(filePath);
+                        RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment2.FileName, attachmentStream)] });
+                        files.Add(attachmentMessage.Attachments[0].Url);
+                        File.Delete(filePath);
                     }
-                    files.Add(attachment2.FileName);
                 }
                 if (attachment3 != null)
                 {
@@ -61,16 +67,98 @@ namespace LCVRBot.Commands
                     {
                         string filePath = Program.appdataPath + attachment3.FileName;
                         client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                        Stream attachmentStream = File.OpenRead(filePath);
+                        RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment3.FileName, attachmentStream)] });
+                        files.Add(attachmentMessage.Attachments[0].Url);
+                        File.Delete(filePath);
                     }
-                    files.Add(attachment3.FileName);
                 }
 
                 // add the macro
-                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText.Replace("\\n", "\n"), new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()), files.ToArray()));
+                BotSettings.settings.macroList.Add(macroName, (macroDescription, macroText.Replace("\\n", "\n"), files.ToArray()));
                 BotSettings.Save();
 
                 await ModifyResponseAsync((props) => { props.Content = $"Added .{macroName} successfully!"; });
                 Console.WriteLine($"Added .{macroName} successfully!");
+            }
+            catch (Exception ex)
+            {
+                await ModifyResponseAsync((props) => { props.Content = $"Adding macro failed with {ex.Message}"; });
+                Console.WriteLine($"Adding macro failed with {ex.Message}");
+            }
+        }
+
+        // context menu for adding a macro   do NOT allow people to use the command in DMs lol       Make sure only admins can use it    only allow LCVR admins to use it
+        [MessageCommand( "add-macro", Contexts = [InteractionContextType.Guild], DefaultGuildUserPermissions = Permissions.Administrator)]
+        public async Task AddMacroContext(RestMessage message)
+        {
+            // split by newline to parse out macro name
+            var macroParse = message.Content.Split("\n");
+            string? macroName = null;
+            string? macroText = null;
+
+            // check the array lenght
+            switch (macroParse.Length)
+            {
+                // if they didn't type anything, and just sent something, invalid
+                case 0:
+                    await RespondAsync(InteractionCallback.Message(new() { Content = "Invalid macro to add, nothing in message", Flags = MessageFlags.Ephemeral }));
+                    return;
+                // if they just typed the macro name, it'll likely be just an image macro
+                // but do check that it is a macro name
+                case 1:
+                    macroName = macroParse[0].Remove(0,1);
+                    if (macroName.StartsWith('.') && macroName.Split(' ').Length == 1)
+                        break;
+                    await RespondAsync(InteractionCallback.Message(new() { Content = $"Invalid macro to add, macro name is invalid: {macroName}", Flags = MessageFlags.Ephemeral }));
+                    return;
+                // else they likely typed out the macro name, plus more to parse for text and description
+                // but again make sure of valid macro name
+                default:
+                    macroName = macroParse[0];
+                    if (!(macroName.StartsWith('.') && macroName.Split(' ').Length == 1))
+                    {
+                        await RespondAsync(InteractionCallback.Message(new() { Content = $"Invalid macro to add, macro name is invalid: {macroName}", Flags = MessageFlags.Ephemeral }));
+                        return;
+                    }
+
+                    macroText += macroParse[1];
+                    for (int i = 2; i < macroParse.Length; i++)
+                        macroText += "\n" + macroParse[i];
+                    break;
+            }
+
+            // respond immediately to avoid timeout
+            await RespondAsync(InteractionCallback.Message(new() { Content = $"Adding {macroName} macro..." }));
+
+            try // try-catch adding it in case sumn fails
+            {
+                // download the attachments to appdataPath for storage and reupload
+                // and create a list of saved files
+                List<string> files = [];
+                if (message.Attachments != null && message.Attachments.Any()) 
+                {
+                    foreach (var attachment in message.Attachments)
+                    {
+                        files.Add(attachment.Url);
+                    }
+                }
+
+                string? macroDescription = null;
+                if (macroParse[1].StartsWith("@description "))
+                {
+                    macroDescription = macroParse[1].Replace("@description ", "");
+                    macroText = macroText?.Replace(macroParse[1], "");
+                }
+
+                macroText = macroText?.TrimStart("\n".ToCharArray());
+
+                // add the macro
+                BotSettings.settings.macroList.Add(macroName.Remove(0, 1), (macroDescription!, macroText!, files.ToArray()));
+                BotSettings.Save();
+
+                await ModifyResponseAsync((props) => { props.Content = $"Added {macroName} successfully!"; });
+                Console.WriteLine($"Added {macroName} successfully!");
             }
             catch (Exception ex)
             {
@@ -90,7 +178,7 @@ namespace LCVRBot.Commands
             try // try-catch removing it in case sumn fails
             {
                 // throw if there isn't a macro with that name
-                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
+                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // delete any associated attachments
                 foreach (string attachment in value.attachments)
@@ -195,7 +283,6 @@ namespace LCVRBot.Commands
             [SlashCommandParameter(Name = "name", Description = "The name of the macro. (Don't include the .)")] string macroName,
             [SlashCommandParameter(Name = "description", Description = "(optional) A quick description of the macro")] string? macroDescription = null,
             [SlashCommandParameter(Name = "macro-text", Description = "(optional) What you want the macro to say when used")] string? macroText = null,
-            [SlashCommandParameter(Name = "color", Description = "(optional) the color of the macro embed in #rrggbb format")] string? macroColor = null,
             [SlashCommandParameter(Name = "attachment1", Description = "(optional) First attachment that you want to be sent along with the macro")] Attachment? attachment1 = null,
             [SlashCommandParameter(Name = "attachment2", Description = "(optional) Second attachment that you want to be sent along with the macro")] Attachment? attachment2 = null,
             [SlashCommandParameter(Name = "attachment3", Description = "(optional) Third attachment that you want to be sent along with the macro")] Attachment? attachment3 = null)
@@ -206,12 +293,11 @@ namespace LCVRBot.Commands
             try // try-catch editing it in case sumn fails
             {
                 // throw if there isnt a macro with that name
-                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
+                if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // edit the macro, skipping any part not changed, and attachments as they will be added later
-                (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) editedMacro = (macroDescription ?? value.macroDescription,
+                (string macroDescription, string macroText, string[] attachments) editedMacro = (macroDescription ?? value.macroDescription,
                                                              macroText != null ? macroText.Replace("\\n", "\n") : value.macroText,
-                                                             macroColor != null ? new NetCord.Color(ColorTranslator.FromHtml(macroColor).ToArgb()) : value.macroColor,
                                                              value.attachments);
 
                 // download any attachments to be changed or added, and add them to the edited macro
@@ -224,81 +310,81 @@ namespace LCVRBot.Commands
                     {
                         try
                         {
-                            // delete the old file
-                            File.Delete(files[0]);
-
-                            // and download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment1.FileName;
                                 client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment1.FileName, attachmentStream)] });
+                                files[0] = attachmentMessage.Attachments[0].Url;
+                                File.Delete(filePath);
                             }
-                            files[0] = attachment1.FileName;
                         }
                         catch
                         {
-                            // Deleting the file must have failed, meaning just download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment1.FileName;
                                 client.DownloadFile(attachment1.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment1.FileName, attachmentStream)] });
+                                files.Add(attachmentMessage.Attachments[0].Url);
+                                File.Delete(filePath);
                             }
-
-                            files.Add(attachment1.FileName);
                         }
                     }
                     if (attachment2 != null)
                     {
                         try
                         {
-                            // delete the old file
-                            File.Delete(files[0]);
-
-                            // and download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment2.FileName;
                                 client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment2.FileName, attachmentStream)] });
+                                files[1] = attachmentMessage.Attachments[0].Url;
+                                File.Delete(filePath);
                             }
-                            files[0] = attachment2.FileName;
                         }
                         catch
                         {
-                            // Deleting the file must have failed, meaning just download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment2.FileName;
                                 client.DownloadFile(attachment2.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment2.FileName, attachmentStream)] });
+                                files.Add(attachmentMessage.Attachments[0].Url);
+                                File.Delete(filePath);
                             }
-
-                            files.Add(attachment2.FileName);
                         }
                     }
                     if (attachment3 != null)
                     {
                         try
                         {
-                            // delete the old file
-                            File.Delete(files[0]);
-
-                            // and download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment3.FileName;
                                 client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment3.FileName, attachmentStream)] });
+                                files[2] = attachmentMessage.Attachments[0].Url;
+                                File.Delete(filePath);
                             }
-                            files[0] = attachment3.FileName;
                         }
                         catch
                         {
-                            // Deleting the file must have failed, meaning just download the new one
                             using (var client = new WebClient())
                             {
                                 string filePath = Program.appdataPath + attachment3.FileName;
                                 client.DownloadFile(attachment3.Url, File.Exists(filePath) ? filePath[..(filePath.LastIndexOf('.'))] + macroName + filePath[(filePath.LastIndexOf('.'))..] : filePath);
+                                Stream attachmentStream = File.OpenRead(filePath);
+                                RestMessage attachmentMessage = await Program.attachmentChannel!.SendMessageAsync(new() { Attachments = [new AttachmentProperties(attachment3.FileName, attachmentStream)] });
+                                files.Add(attachmentMessage.Attachments[0].Url);
+                                File.Delete(filePath);
                             }
-
-                            files.Add(attachment3.FileName);
                         }
                     }
 
@@ -335,7 +421,7 @@ namespace LCVRBot.Commands
                 if (!BotSettings.settings.macroList.ContainsKey(macroName)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
                 // remove the macro, saving it's contents
-                BotSettings.settings.macroList.Remove(macroName, out (string macroDescription, string macroText, NetCord.Color macroColor, string[] attachments) contents);
+                BotSettings.settings.macroList.Remove(macroName, out (string macroDescription, string macroText, string[] attachments) contents);
 
                 // add it back under the new name and save
                 BotSettings.settings.macroList.Add(newName, contents);
