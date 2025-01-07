@@ -180,12 +180,6 @@ namespace LCVRBot.Commands
                 // throw if there isn't a macro with that name
                 if (!BotSettings.settings.macroList.TryGetValue(macroName, out (string macroDescription, string macroText, string[] attachments) value)) { throw new KeyNotFoundException($"No macro with name {macroName}"); }
 
-                // delete any associated attachments
-                foreach (string attachment in value.attachments)
-                {
-                    File.Delete(Program.appdataPath + attachment);
-                }
-
                 // remove the macro
                 BotSettings.settings.macroList.Remove(macroName);
                 BotSettings.Save();
