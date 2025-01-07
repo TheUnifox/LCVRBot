@@ -94,8 +94,8 @@ namespace LCVRBot
 
         public async ValueTask ClientReady(ReadyEventArgs args)
         {
-            mainGuild = await client.Rest.GetGuildAsync(1192754217564254238);
-            attachmentChannel = (TextGuildChannel)await client.Rest.GetChannelAsync(1324573814947975220);
+            mainGuild = await client.Rest.GetGuildAsync(ulong.Parse(Environment.GetEnvironmentVariable("LCVR_GUILD") ?? ""));
+            attachmentChannel = (TextGuildChannel)await client.Rest.GetChannelAsync(ulong.Parse(Environment.GetEnvironmentVariable("LCVR_ATT_CHANNEL") ?? ""));
             Console.WriteLine("Started!");
         }
 
