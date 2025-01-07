@@ -1,18 +1,7 @@
-﻿using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Net;
+﻿using System.Net;
 using NetCord.Rest;
-using NetCord.Services;
 using NetCord.Services.ApplicationCommands;
 using NetCord;
-using NetCord.Gateway;
-using LCVRBot;
-using System.Reflection;
-using System.Drawing;
 
 namespace LCVRBot.Commands
 {
