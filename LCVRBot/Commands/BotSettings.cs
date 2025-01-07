@@ -13,7 +13,7 @@ namespace LCVRBot.Commands
         // static settings instance for elsewhere to use
         public static Settings settings = new();
 
-        public static string settingsPath = Program.appdataPath + "SETTINGS.json";
+        public static string settingsPath = Path.Combine(Program.appdataPath, "SETTINGS.json");
 
         public static void Load()
         {
